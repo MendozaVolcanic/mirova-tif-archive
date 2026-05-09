@@ -45,8 +45,20 @@ mirova-tif-archive/
 ```
 
 `index.csv` es la fuente de verdad sobre qué se descargó cuándo. El
-timestamp del nombre de archivo es el `Last-Modified` HTTP del TIF
-(cuándo MIROVA escribió ese archivo), normalizado a UTC.
+timestamp del nombre de archivo es el **acquisition time del satélite**
+(cuándo el sensor adquirió la imagen), parseado del header de
+`volcanoMap.php`. Esto es distinto del HTTP `Last-Modified` del TIF —
+MIROVA puede republicar la misma adquisición múltiples veces con
+distintos `Last-Modified`, así que naming por adquisición es lo correcto.
+
+Columnas del index:
+- `captured_at_utc`: cuándo nuestro polling hizo el download.
+- `acquisition_utc`: cuándo el satélite tomó la imagen (parseado de
+  `volcanoMap.php` "Last Update"). Vacío para filas legacy pre-fix.
+- `last_modified_utc`: HTTP Last-Modified del archivo en MIROVA al
+  momento del download.
+- `md5`: hash del contenido del TIF. Filas con mismo md5 = misma
+  adquisición republicada.
 
 ## Cómo se actualiza
 

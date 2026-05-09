@@ -21,6 +21,7 @@ import csv
 import hashlib
 import logging
 import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -42,7 +43,17 @@ DATA_KMZ = REPO_ROOT / "data" / "kmz"
 DATA_PNG = REPO_ROOT / "data" / "png"
 
 BASE_URL = "https://www.mirovaweb.it/OUTPUTweb/MIROVA"
+VOLCANOMAP_URL = "https://www.mirovaweb.it/NRT/volcanoMap.php"
 HTTP_TIMEOUT = 30  # seconds
+
+# Acquisition timestamp regex for the volcanoMap.php page header.
+# MIROVA renders e.g. "<strong>Last Update:</strong> 09-May-2026 05:42:02 (11 hours ago)"
+# This is the satellite acquisition time of the currently published TIF, which
+# can differ substantially from HTTP Last-Modified (MIROVA republishes the same
+# acquisition with new Last-Modified periodically).
+ACQ_RE = re.compile(
+    r"Last Update:</strong>\s*(\d{2}-[A-Z][a-z]{2}-\d{4})\s+(\d{2}:\d{2}:\d{2})"
+)
 USER_AGENT = (
     "mirova-tif-archive/1.0 (+https://github.com/MendozaVolcanic/mirova-tif-archive) "
     "research mirror by SERNAGEOMIN Chile"
@@ -53,7 +64,8 @@ INDEX_HEADER = [
     "volcano",
     "sensor",
     "band",
-    "last_modified_utc",
+    "acquisition_utc",      # NEW: satellite acquisition time from volcanoMap.php
+    "last_modified_utc",    # HTTP Last-Modified of the TIF on MIROVA's server
     "md5",
     "size_bytes",
     "tif_path",
@@ -221,6 +233,38 @@ def stamp(dt: datetime) -> str:
     return dt.strftime("%Y%m%d_%H%M%S")
 
 
+def fetch_acquisition_time(
+    volcano: str, sensor: str, session: requests.Session
+) -> datetime | None:
+    """
+    Scrape `volcanoMap.php` for the currently displayed satellite acquisition
+    timestamp. This is the Last Update shown in the page header — the actual
+    pass time, NOT the HTTP Last-Modified of the TIF.
+
+    Returns None on failure. Treated as UTC (MIROVA is consistently UTC).
+    """
+    url = f"{VOLCANOMAP_URL}?volcano={volcano}&sensor={sensor}"
+    try:
+        r = session.get(url, timeout=HTTP_TIMEOUT)
+    except requests.RequestException as e:
+        logging.warning("acquisition fetch failed for %s/%s: %s", volcano, sensor, e)
+        return None
+    if r.status_code != 200:
+        logging.warning("acquisition fetch %s/%s -> %d", volcano, sensor, r.status_code)
+        return None
+    m = ACQ_RE.search(r.text)
+    if not m:
+        logging.warning("acquisition timestamp not found in %s/%s page", volcano, sensor)
+        return None
+    date_str, time_str = m.group(1), m.group(2)
+    try:
+        dt = datetime.strptime(f"{date_str} {time_str}", "%d-%b-%Y %H:%M:%S")
+    except ValueError as e:
+        logging.warning("acquisition parse failed: %s", e)
+        return None
+    return dt.replace(tzinfo=timezone.utc)
+
+
 # ---------------------------------------------------------------------------
 # Core
 
@@ -255,28 +299,39 @@ def process_target(
 
     md5 = md5_hex(tif_bytes)
     if last_row and last_row["md5"] == md5:
-        # Last-Modified bumped but content identical → silent re-touch by MIROVA.
-        # Update index without writing a duplicate file.
+        # Last-Modified bumped but content identical → silent re-touch by MIROVA
+        # OR republication of the same acquisition. Update index, no new file.
+        # Refresh acquisition_utc too in case MIROVA republished with the same
+        # binary but a different stated acquisition (rare; defensive).
+        acq = fetch_acquisition_time(target.volcano, target.sensor, session)
         logging.info(
-            "[%s/%s] Last-Modified bumped but content unchanged (md5=%s); skipping save",
-            target.volcano,
-            target.sensor,
-            md5,
+            "[%s/%s] same md5 (%s); silent re-touch update",
+            target.volcano, target.sensor, md5,
         )
         return {
             **last_row,
             "captured_at_utc": datetime.now(timezone.utc).isoformat(),
             "last_modified_utc": last_modified.isoformat(),
+            "acquisition_utc": acq.isoformat() if acq else last_row.get("acquisition_utc", ""),
         }
 
+    # NEW content. Fetch acquisition_time for proper filename + KMZ.
+    acquisition = fetch_acquisition_time(target.volcano, target.sensor, session)
     kmz_bytes = fetch_binary(target.kmz_url(), session)
-    # KMZ failure is non-fatal — TIF is the primary asset.
 
     if dry_run:
-        logging.info("[dry-run] would save %s/%s (%d bytes)", target.volcano, target.sensor, len(tif_bytes))
+        logging.info(
+            "[dry-run] would save %s/%s acq=%s (%d bytes)",
+            target.volcano, target.sensor,
+            acquisition.isoformat() if acquisition else "<unknown>",
+            len(tif_bytes),
+        )
         return None
 
-    fname = f"{stamp(last_modified)}_{target.sensor}"
+    # Filename uses acquisition time when available (true satellite pass),
+    # falling back to Last-Modified if MIROVA's page can't be parsed.
+    name_dt = acquisition if acquisition is not None else last_modified
+    fname = f"{stamp(name_dt)}_{target.sensor}"
     tif_path = DATA_TIF / target.volcano / f"{fname}.tif"
     tif_path.parent.mkdir(parents=True, exist_ok=True)
     tif_path.write_bytes(tif_bytes)
@@ -288,11 +343,19 @@ def process_target(
         kmz_path.write_bytes(kmz_bytes)
         kmz_path_str = str(kmz_path.relative_to(REPO_ROOT)).replace("\\", "/")
 
+    logging.info(
+        "[%s/%s] saved acq=%s lm=%s",
+        target.volcano, target.sensor,
+        acquisition.isoformat() if acquisition else "<unknown>",
+        last_modified.isoformat(),
+    )
+
     return {
         "captured_at_utc": datetime.now(timezone.utc).isoformat(),
         "volcano": target.volcano,
         "sensor": target.sensor,
         "band": target.band,
+        "acquisition_utc": acquisition.isoformat() if acquisition else "",
         "last_modified_utc": last_modified.isoformat(),
         "md5": md5,
         "size_bytes": len(tif_bytes),
