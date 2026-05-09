@@ -334,6 +334,33 @@ def process_target(
     fname = f"{stamp(name_dt)}_{target.sensor}"
     tif_path = DATA_TIF / target.volcano / f"{fname}.tif"
     tif_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # COLLISION GUARD: si el archivo destino ya existe con CONTENIDO DISTINTO
+    # al que vamos a escribir, MIROVA tiene desync entre header y binario:
+    # el header del visor mostró acquisition X, pero el binario del TIF que
+    # bajamos corresponde a una acquisition POSTERIOR cuyo header todavía no
+    # se actualizó. Sin esto, sobrescribimos un TIF previo válido.
+    # Fallback: nombrar por last_modified con sufijo _lm y marcar
+    # acquisition_utc="" para que sea claro que no es confiable.
+    if tif_path.exists():
+        existing_md5 = md5_hex(tif_path.read_bytes())
+        if existing_md5 != md5:
+            logging.warning(
+                "[%s/%s] COLLISION: %s ya existe con md5 %s, nuevo md5 %s; "
+                "MIROVA header desync. Usando fallback last_modified naming.",
+                target.volcano, target.sensor, fname, existing_md5[:10], md5[:10],
+            )
+            acquisition = None  # invalidate — no confiamos en el header
+            fname = f"{stamp(last_modified)}_{target.sensor}_lm"
+            tif_path = DATA_TIF / target.volcano / f"{fname}.tif"
+            # Si ESE también colisiona, abortar limpio (caso muy raro)
+            if tif_path.exists():
+                logging.error(
+                    "[%s/%s] fallback path %s also exists; aborting save",
+                    target.volcano, target.sensor, fname,
+                )
+                return None
+
     tif_path.write_bytes(tif_bytes)
 
     kmz_path_str = ""
