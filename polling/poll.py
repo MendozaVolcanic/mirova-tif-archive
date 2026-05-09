@@ -394,8 +394,11 @@ def main() -> int:
                 touched_tif.append(row)
             else:
                 new_rows_tif.append(row)
-        if new_rows_tif and not args.dry_run:
-            append_index(new_rows_tif)
+        # Persist BOTH new and touched rows so next poll's last_index has the
+        # updated Last-Modified — otherwise we re-download every cycle when
+        # MIROVA touches the file without changing content (~146KB wasted/poll).
+        if not args.dry_run and (new_rows_tif or touched_tif):
+            append_index(new_rows_tif + touched_tif)
 
     # ---- PNG leg ----
     if not args.skip_png:
@@ -414,8 +417,8 @@ def main() -> int:
                 touched_png.append(row)
             else:
                 new_rows_png.append(row)
-        if new_rows_png and not args.dry_run:
-            append_png_index(new_rows_png)
+        if not args.dry_run and (new_rows_png or touched_png):
+            append_png_index(new_rows_png + touched_png)
 
     total_new = len(new_rows_tif) + len(new_rows_png)
     total_touched = len(touched_tif) + len(touched_png)
