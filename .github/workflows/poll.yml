@@ -53,8 +53,8 @@ jobs:
           git config user.name "mirova-tif-bot"
           git config user.email "mirova-tif-bot@users.noreply.github.com"
 
-          # Stage everything under data/ and the index.
-          git add data/ index.csv 2>/dev/null || true
+          # Stage everything under data/ and both indexes.
+          git add data/ index.csv index_png.csv 2>/dev/null || true
 
           if git diff --staged --quiet; then
             echo "No changes to commit."

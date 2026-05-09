@@ -36,8 +36,10 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "volcanoes.yml"
 INDEX_CSV = REPO_ROOT / "index.csv"
+INDEX_PNG_CSV = REPO_ROOT / "index_png.csv"
 DATA_TIF = REPO_ROOT / "data" / "tif"
 DATA_KMZ = REPO_ROOT / "data" / "kmz"
+DATA_PNG = REPO_ROOT / "data" / "png"
 
 BASE_URL = "https://www.mirovaweb.it/OUTPUTweb/MIROVA"
 HTTP_TIMEOUT = 30  # seconds
@@ -58,6 +60,22 @@ INDEX_HEADER = [
     "kmz_path",
 ]
 
+INDEX_PNG_HEADER = [
+    "captured_at_utc",
+    "volcano",
+    "sensor",      # MODIS / VIIRS750 / VIIRS375 / COMB
+    "kind",        # VRP / logVRP / Dist / Latest10NTI
+    "last_modified_utc",
+    "md5",
+    "size_bytes",
+    "png_path",
+]
+
+# Per-sensor PNG types (the 4 plots per sensor)
+PER_SENSOR_PNG_KINDS = ["VRP", "logVRP", "Dist", "Latest10NTI"]
+# COMB cross-sensor PNGs (3 plots, no Latest10NTI for COMB)
+COMB_PNG_KINDS = ["VRP", "logVRP", "Dist"]
+
 # ---------------------------------------------------------------------------
 # Data classes
 
@@ -73,6 +91,17 @@ class Target:
 
     def kmz_url(self) -> str:
         return f"{BASE_URL}/{self.sensor}/VOLCANOES/{self.volcano}/{self.volcano}_{self.sensor}_Last_GE.kmz"
+
+
+@dataclass(frozen=True)
+class PngTarget:
+    """Asset PNG: per-sensor plot OR COMB cross-sensor plot."""
+    volcano: str        # MIROVA name
+    sensor: str         # MODIS / VIIRS750 / VIIRS375 / COMB
+    kind: str           # VRP / logVRP / Dist / Latest10NTI
+
+    def url(self) -> str:
+        return f"{BASE_URL}/{self.sensor}/VOLCANOES/{self.volcano}/{self.volcano}_{self.sensor}_{self.kind}.png"
 
 
 # ---------------------------------------------------------------------------
@@ -97,8 +126,23 @@ def load_targets() -> list[Target]:
     return targets
 
 
+def load_png_targets() -> list[PngTarget]:
+    """Build the list of PNG assets to poll: per-sensor plots + COMB plots."""
+    with CONFIG_PATH.open(encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    targets: list[PngTarget] = []
+    for v in cfg["volcanoes"]:
+        vol = v["mirova_name"]
+        for s in cfg["sensors"]:
+            for kind in PER_SENSOR_PNG_KINDS:
+                targets.append(PngTarget(volcano=vol, sensor=s["name"], kind=kind))
+        for kind in COMB_PNG_KINDS:
+            targets.append(PngTarget(volcano=vol, sensor="COMB", kind=kind))
+    return targets
+
+
 def load_index() -> dict[tuple[str, str], dict]:
-    """Map (volcano, sensor) -> last row dict."""
+    """Map (volcano, sensor) -> last row dict for TIF index."""
     if not INDEX_CSV.exists():
         return {}
     last: dict[tuple[str, str], dict] = {}
@@ -109,11 +153,33 @@ def load_index() -> dict[tuple[str, str], dict]:
     return last
 
 
+def load_png_index() -> dict[tuple[str, str, str], dict]:
+    """Map (volcano, sensor, kind) -> last row dict for PNG index."""
+    if not INDEX_PNG_CSV.exists():
+        return {}
+    last: dict[tuple[str, str, str], dict] = {}
+    with INDEX_PNG_CSV.open(encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            key = (row["volcano"], row["sensor"], row["kind"])
+            last[key] = row
+    return last
+
+
 def append_index(rows: list[dict]) -> None:
     new = not INDEX_CSV.exists()
     INDEX_CSV.parent.mkdir(parents=True, exist_ok=True)
     with INDEX_CSV.open("a", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=INDEX_HEADER)
+        if new:
+            writer.writeheader()
+        writer.writerows(rows)
+
+
+def append_png_index(rows: list[dict]) -> None:
+    new = not INDEX_PNG_CSV.exists()
+    INDEX_PNG_CSV.parent.mkdir(parents=True, exist_ok=True)
+    with INDEX_PNG_CSV.open("a", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=INDEX_PNG_HEADER)
         if new:
             writer.writeheader()
         writer.writerows(rows)
@@ -235,55 +301,140 @@ def process_target(
     }
 
 
+def process_png_target(
+    target: PngTarget,
+    session: requests.Session,
+    last_index: dict[tuple[str, str, str], dict],
+    dry_run: bool,
+) -> dict | None:
+    key = (target.volcano, target.sensor, target.kind)
+    last_modified = head_last_modified(target.url(), session)
+    if last_modified is None:
+        return None
+
+    last_row = last_index.get(key)
+    if last_row and last_row["last_modified_utc"] == last_modified.isoformat():
+        return None
+
+    png_bytes = fetch_binary(target.url(), session)
+    if png_bytes is None:
+        return None
+
+    md5 = md5_hex(png_bytes)
+    if last_row and last_row["md5"] == md5:
+        # silent re-touch
+        return {
+            **last_row,
+            "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+            "last_modified_utc": last_modified.isoformat(),
+        }
+
+    if dry_run:
+        logging.info(
+            "[dry-run] would save %s/%s/%s (%d bytes)",
+            target.volcano, target.sensor, target.kind, len(png_bytes),
+        )
+        return None
+
+    fname = f"{stamp(last_modified)}_{target.sensor}_{target.kind}"
+    png_path = DATA_PNG / target.volcano / f"{fname}.png"
+    png_path.parent.mkdir(parents=True, exist_ok=True)
+    png_path.write_bytes(png_bytes)
+
+    logging.info(
+        "[%s/%s/%s] saved (Last-Modified=%s)",
+        target.volcano, target.sensor, target.kind, last_modified.isoformat(),
+    )
+
+    return {
+        "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+        "volcano": target.volcano,
+        "sensor": target.sensor,
+        "kind": target.kind,
+        "last_modified_utc": last_modified.isoformat(),
+        "md5": md5,
+        "size_bytes": len(png_bytes),
+        "png_path": str(png_path.relative_to(REPO_ROOT)).replace("\\", "/"),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="HEAD + diff but don't save")
     parser.add_argument("--volcano", help="filter to single MIROVA volcano name")
-    parser.add_argument("--sensor", help="filter to single sensor (MODIS/VIIRS750/VIIRS375)")
+    parser.add_argument("--sensor", help="filter to single sensor (MODIS/VIIRS750/VIIRS375/COMB)")
+    parser.add_argument("--skip-tif", action="store_true", help="poll only PNGs (skip TIF/KMZ)")
+    parser.add_argument("--skip-png", action="store_true", help="poll only TIF/KMZ (skip PNGs)")
     args = parser.parse_args()
 
     setup_logging()
 
-    targets = load_targets()
-    if args.volcano:
-        targets = [t for t in targets if t.volcano == args.volcano]
-    if args.sensor:
-        targets = [t for t in targets if t.sensor == args.sensor]
-    if not targets:
-        logging.error("no targets after filter")
-        return 2
-
-    last_index = load_index()
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
 
-    new_rows: list[dict] = []
-    touched_only: list[dict] = []
-    for t in targets:
-        row = process_target(t, session, last_index, args.dry_run)
-        if row is None:
-            continue
-        # touched_only rows have same md5 as last; we update index but don't add
-        # a new physical file. Distinguish by tif_path identity with previous.
-        prev = last_index.get((t.volcano, t.sensor))
-        if prev and row.get("tif_path") == prev.get("tif_path"):
-            touched_only.append(row)
-        else:
-            new_rows.append(row)
+    new_rows_tif: list[dict] = []
+    touched_tif: list[dict] = []
+    new_rows_png: list[dict] = []
+    touched_png: list[dict] = []
 
-    if not new_rows and not touched_only:
-        logging.info("no changes across %d targets", len(targets))
-        # Print a stable summary line so the workflow knows nothing changed.
+    # ---- TIF + KMZ leg ----
+    if not args.skip_tif:
+        targets = load_targets()
+        if args.volcano:
+            targets = [t for t in targets if t.volcano == args.volcano]
+        if args.sensor:
+            targets = [t for t in targets if t.sensor == args.sensor]
+        last_index = load_index()
+        for t in targets:
+            row = process_target(t, session, last_index, args.dry_run)
+            if row is None:
+                continue
+            prev = last_index.get((t.volcano, t.sensor))
+            if prev and row.get("tif_path") == prev.get("tif_path"):
+                touched_tif.append(row)
+            else:
+                new_rows_tif.append(row)
+        if new_rows_tif and not args.dry_run:
+            append_index(new_rows_tif)
+
+    # ---- PNG leg ----
+    if not args.skip_png:
+        png_targets = load_png_targets()
+        if args.volcano:
+            png_targets = [t for t in png_targets if t.volcano == args.volcano]
+        if args.sensor:
+            png_targets = [t for t in png_targets if t.sensor == args.sensor]
+        last_png_index = load_png_index()
+        for t in png_targets:
+            row = process_png_target(t, session, last_png_index, args.dry_run)
+            if row is None:
+                continue
+            prev = last_png_index.get((t.volcano, t.sensor, t.kind))
+            if prev and row.get("png_path") == prev.get("png_path"):
+                touched_png.append(row)
+            else:
+                new_rows_png.append(row)
+        if new_rows_png and not args.dry_run:
+            append_png_index(new_rows_png)
+
+    total_new = len(new_rows_tif) + len(new_rows_png)
+    total_touched = len(touched_tif) + len(touched_png)
+
+    if total_new == 0 and total_touched == 0:
+        logging.info("no changes")
         print("STATUS: no_changes")
         return 0
 
-    if new_rows and not args.dry_run:
-        append_index(new_rows)
-
     logging.info(
-        "summary: %d new files, %d touched-only updates", len(new_rows), len(touched_only)
+        "summary: tif=%d/%d png=%d/%d (new/touched)",
+        len(new_rows_tif), len(touched_tif),
+        len(new_rows_png), len(touched_png),
     )
-    print(f"STATUS: changes new={len(new_rows)} touched={len(touched_only)}")
+    print(
+        f"STATUS: changes "
+        f"tif_new={len(new_rows_tif)} tif_touched={len(touched_tif)} "
+        f"png_new={len(new_rows_png)} png_touched={len(touched_png)}"
+    )
     return 0
 
 
