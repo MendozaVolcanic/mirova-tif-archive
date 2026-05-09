@@ -1,0 +1,291 @@
+"""
+poll.py — scrapea TIF + KMZ de mirovaweb.it cada vez que cambia Last-Modified.
+
+Diseñado para correr cada 5 minutos vía GitHub Actions disparado por
+cron-job.org. Idempotente: si nada cambió, exit 0 sin commit.
+
+Output:
+  - data/tif/{Volcano}/{YYYYMMDD_HHMMSS}_{sensor}.tif
+  - data/kmz/{Volcano}/{YYYYMMDD_HHMMSS}_{sensor}.kmz
+  - index.csv (append-only log)
+
+Uso local:
+  pip install -r polling/requirements.txt
+  python polling/poll.py [--dry-run] [--volcano LASCAR] [--sensor VIIRS375]
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import logging
+import os
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from pathlib import Path
+
+import requests
+import yaml
+
+# ---------------------------------------------------------------------------
+# Config
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONFIG_PATH = REPO_ROOT / "config" / "volcanoes.yml"
+INDEX_CSV = REPO_ROOT / "index.csv"
+DATA_TIF = REPO_ROOT / "data" / "tif"
+DATA_KMZ = REPO_ROOT / "data" / "kmz"
+
+BASE_URL = "https://www.mirovaweb.it/OUTPUTweb/MIROVA"
+HTTP_TIMEOUT = 30  # seconds
+USER_AGENT = (
+    "mirova-tif-archive/1.0 (+https://github.com/MendozaVolcanic/mirova-tif-archive) "
+    "research mirror by SERNAGEOMIN Chile"
+)
+
+INDEX_HEADER = [
+    "captured_at_utc",
+    "volcano",
+    "sensor",
+    "band",
+    "last_modified_utc",
+    "md5",
+    "size_bytes",
+    "tif_path",
+    "kmz_path",
+]
+
+# ---------------------------------------------------------------------------
+# Data classes
+
+
+@dataclass(frozen=True)
+class Target:
+    volcano: str        # MIROVA name, e.g. "Lascar"
+    sensor: str         # MODIS / VIIRS750 / VIIRS375
+    band: str           # B21 / M13 / I04
+
+    def tif_url(self) -> str:
+        return f"{BASE_URL}/{self.sensor}/VOLCANOES/{self.volcano}/{self.volcano}_{self.sensor}_{self.band}.tif"
+
+    def kmz_url(self) -> str:
+        return f"{BASE_URL}/{self.sensor}/VOLCANOES/{self.volcano}/{self.volcano}_{self.sensor}_Last_GE.kmz"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+
+
+def setup_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
+def load_targets() -> list[Target]:
+    with CONFIG_PATH.open(encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    targets: list[Target] = []
+    for v in cfg["volcanoes"]:
+        for s in cfg["sensors"]:
+            targets.append(Target(volcano=v["mirova_name"], sensor=s["name"], band=s["band"]))
+    return targets
+
+
+def load_index() -> dict[tuple[str, str], dict]:
+    """Map (volcano, sensor) -> last row dict."""
+    if not INDEX_CSV.exists():
+        return {}
+    last: dict[tuple[str, str], dict] = {}
+    with INDEX_CSV.open(encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            key = (row["volcano"], row["sensor"])
+            last[key] = row
+    return last
+
+
+def append_index(rows: list[dict]) -> None:
+    new = not INDEX_CSV.exists()
+    INDEX_CSV.parent.mkdir(parents=True, exist_ok=True)
+    with INDEX_CSV.open("a", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=INDEX_HEADER)
+        if new:
+            writer.writeheader()
+        writer.writerows(rows)
+
+
+def head_last_modified(url: str, session: requests.Session) -> datetime | None:
+    """Returns Last-Modified as UTC datetime, or None on error/404."""
+    try:
+        r = session.head(url, timeout=HTTP_TIMEOUT, allow_redirects=True)
+    except requests.RequestException as e:
+        logging.warning("HEAD failed for %s: %s", url, e)
+        return None
+    if r.status_code != 200:
+        logging.info("HEAD %s -> %s", url, r.status_code)
+        return None
+    lm = r.headers.get("Last-Modified")
+    if not lm:
+        return None
+    return parsedate_to_datetime(lm).astimezone(timezone.utc)
+
+
+def fetch_binary(url: str, session: requests.Session) -> bytes | None:
+    try:
+        r = session.get(url, timeout=HTTP_TIMEOUT)
+    except requests.RequestException as e:
+        logging.warning("GET failed for %s: %s", url, e)
+        return None
+    if r.status_code != 200:
+        logging.info("GET %s -> %s", url, r.status_code)
+        return None
+    return r.content
+
+
+def md5_hex(data: bytes) -> str:
+    return hashlib.md5(data).hexdigest()
+
+
+def stamp(dt: datetime) -> str:
+    return dt.strftime("%Y%m%d_%H%M%S")
+
+
+# ---------------------------------------------------------------------------
+# Core
+
+
+def process_target(
+    target: Target,
+    session: requests.Session,
+    last_index: dict[tuple[str, str], dict],
+    dry_run: bool,
+) -> dict | None:
+    key = (target.volcano, target.sensor)
+    last_modified = head_last_modified(target.tif_url(), session)
+    if last_modified is None:
+        return None
+
+    last_row = last_index.get(key)
+    if last_row and last_row["last_modified_utc"] == last_modified.isoformat():
+        # Same Last-Modified as last capture — MIROVA hasn't pushed a new pass.
+        return None
+
+    logging.info(
+        "[%s/%s] new pass detected (Last-Modified=%s, prev=%s)",
+        target.volcano,
+        target.sensor,
+        last_modified.isoformat(),
+        last_row["last_modified_utc"] if last_row else "<none>",
+    )
+
+    tif_bytes = fetch_binary(target.tif_url(), session)
+    if tif_bytes is None:
+        return None
+
+    md5 = md5_hex(tif_bytes)
+    if last_row and last_row["md5"] == md5:
+        # Last-Modified bumped but content identical → silent re-touch by MIROVA.
+        # Update index without writing a duplicate file.
+        logging.info(
+            "[%s/%s] Last-Modified bumped but content unchanged (md5=%s); skipping save",
+            target.volcano,
+            target.sensor,
+            md5,
+        )
+        return {
+            **last_row,
+            "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+            "last_modified_utc": last_modified.isoformat(),
+        }
+
+    kmz_bytes = fetch_binary(target.kmz_url(), session)
+    # KMZ failure is non-fatal — TIF is the primary asset.
+
+    if dry_run:
+        logging.info("[dry-run] would save %s/%s (%d bytes)", target.volcano, target.sensor, len(tif_bytes))
+        return None
+
+    fname = f"{stamp(last_modified)}_{target.sensor}"
+    tif_path = DATA_TIF / target.volcano / f"{fname}.tif"
+    tif_path.parent.mkdir(parents=True, exist_ok=True)
+    tif_path.write_bytes(tif_bytes)
+
+    kmz_path_str = ""
+    if kmz_bytes is not None:
+        kmz_path = DATA_KMZ / target.volcano / f"{fname}.kmz"
+        kmz_path.parent.mkdir(parents=True, exist_ok=True)
+        kmz_path.write_bytes(kmz_bytes)
+        kmz_path_str = str(kmz_path.relative_to(REPO_ROOT)).replace("\\", "/")
+
+    return {
+        "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+        "volcano": target.volcano,
+        "sensor": target.sensor,
+        "band": target.band,
+        "last_modified_utc": last_modified.isoformat(),
+        "md5": md5,
+        "size_bytes": len(tif_bytes),
+        "tif_path": str(tif_path.relative_to(REPO_ROOT)).replace("\\", "/"),
+        "kmz_path": kmz_path_str,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true", help="HEAD + diff but don't save")
+    parser.add_argument("--volcano", help="filter to single MIROVA volcano name")
+    parser.add_argument("--sensor", help="filter to single sensor (MODIS/VIIRS750/VIIRS375)")
+    args = parser.parse_args()
+
+    setup_logging()
+
+    targets = load_targets()
+    if args.volcano:
+        targets = [t for t in targets if t.volcano == args.volcano]
+    if args.sensor:
+        targets = [t for t in targets if t.sensor == args.sensor]
+    if not targets:
+        logging.error("no targets after filter")
+        return 2
+
+    last_index = load_index()
+    session = requests.Session()
+    session.headers.update({"User-Agent": USER_AGENT})
+
+    new_rows: list[dict] = []
+    touched_only: list[dict] = []
+    for t in targets:
+        row = process_target(t, session, last_index, args.dry_run)
+        if row is None:
+            continue
+        # touched_only rows have same md5 as last; we update index but don't add
+        # a new physical file. Distinguish by tif_path identity with previous.
+        prev = last_index.get((t.volcano, t.sensor))
+        if prev and row.get("tif_path") == prev.get("tif_path"):
+            touched_only.append(row)
+        else:
+            new_rows.append(row)
+
+    if not new_rows and not touched_only:
+        logging.info("no changes across %d targets", len(targets))
+        # Print a stable summary line so the workflow knows nothing changed.
+        print("STATUS: no_changes")
+        return 0
+
+    if new_rows and not args.dry_run:
+        append_index(new_rows)
+
+    logging.info(
+        "summary: %d new files, %d touched-only updates", len(new_rows), len(touched_only)
+    )
+    print(f"STATUS: changes new={len(new_rows)} touched={len(touched_only)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

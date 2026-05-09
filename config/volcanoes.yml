@@ -1,0 +1,50 @@
+# 11 volcanes chilenos Tier A monitoreados por MIROVA.
+# `mirova_id`  = ID numérico que usa MIROVA en URLs `volcano_id=X`
+# `mirova_name` = string exacto en URL `?volcano=X` y en path OUTPUTweb/.../{X}/
+#                 (ojo: capitalización y nombres pegados como ChillanNevadosde,
+#                 PuyehueCordonCaulle son los oficiales de MIROVA, no típos)
+# `display`    = nombre común para reporting/UI
+
+volcanoes:
+  - mirova_id: 355030
+    mirova_name: Isluga
+    display: Isluga
+  - mirova_id: 355100
+    mirova_name: Lascar
+    display: Láscar
+  - mirova_id: 355120
+    mirova_name: Lastarria
+    display: Lastarria
+  - mirova_id: 357010
+    mirova_name: Tupungatito
+    display: Tupungatito
+  - mirova_id: 357040
+    mirova_name: PlanchonPeteroa
+    display: Planchón-Peteroa
+  - mirova_id: 357070
+    mirova_name: ChillanNevadosde
+    display: Nevados de Chillán
+  - mirova_id: 357090
+    mirova_name: Copahue
+    display: Copahue
+  - mirova_id: 357110
+    mirova_name: Llaima
+    display: Llaima
+  - mirova_id: 357120
+    mirova_name: Villarrica
+    display: Villarrica
+  - mirova_id: 357150
+    mirova_name: PuyehueCordonCaulle
+    display: Puyehue-Cordón Caulle
+  - mirova_id: 358041
+    mirova_name: Chaiten
+    display: Chaitén
+
+# Cada volcán × 3 sensores. La banda es fija por sensor (ver README).
+sensors:
+  - name: MODIS
+    band: B21
+  - name: VIIRS750
+    band: M13
+  - name: VIIRS375
+    band: I04
