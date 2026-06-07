@@ -1,6 +1,19 @@
 name: Poll MIROVA TIF/KMZ
 
-on:
+# Triggers:
+#  - schedule (NATIVO, agregado S103 2026-06-07): respaldo durable. El polling
+#    lo disparaba cron-job.org cada 5 min via la API de workflow_dispatch; ese
+#    trigger externo murio el 2026-05-20 y el archivo quedo congelado sin que se
+#    notara. El schedule nativo no depende de un servicio externo. GitHub puede
+#    correrlo tarde en picos de carga, pero para validacion R2 (TIF +-90min de
+#    una deteccion) cada ~30 min alcanza. cron-job.org puede convivir si se revive.
+#    NOTA: MIROVA SOBRESCRIBE sus TIF en cada pasada -> el polling solo captura
+#    hacia adelante; el historico previo a la reactivacion es irrecuperable.
+#  - workflow_dispatch: corrida manual / trigger externo (cron-job.org).
+# A43: key quoteada como "on" para evitar el "Norway problem" de YAML 1.1.
+"on":
+  schedule:
+    - cron: "*/30 * * * *"  # cada 30 min (respaldo nativo)
   workflow_dispatch:
     inputs:
       dry_run:

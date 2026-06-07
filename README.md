@@ -40,7 +40,7 @@ mirova-tif-archive/
 │   ├── tif/{Volcano}/{YYYYMMDD_HHMMSS}_{sensor}.tif
 │   └── kmz/{Volcano}/{YYYYMMDD_HHMMSS}_{sensor}.kmz
 ├── index.csv                  # log: vol, sensor, last_modified, md5, file_path
-├── .github/workflows/poll.yml # workflow_dispatch ejecutado por cron-job.org
+├── .github/workflows/poll.yml # schedule nativo */30min (S103) + workflow_dispatch
 └── README.md
 ```
 
@@ -62,14 +62,25 @@ Columnas del index:
 
 ## Cómo se actualiza
 
-1. **Trigger externo**: [cron-job.org](https://cron-job.org/) cada 5 min hace
-   `POST` a la GitHub API:
-   ```
-   POST https://api.github.com/repos/MendozaVolcanic/mirova-tif-archive/actions/workflows/poll.yml/dispatches
-   Authorization: Bearer <PAT>
-   {"ref":"main"}
-   ```
-   Esto evita la cola de GitHub Actions cron interno.
+1. **Trigger** (dos vías, conviven):
+   - **Schedule nativo de GitHub Actions** (`poll.yml`, `*/30 * * * *`), agregado
+     en **S103 (2026-06-07)** como respaldo durable. El trigger externo de abajo
+     murió silenciosamente el **2026-05-20** y el archivo quedó congelado ~18 días
+     sin que nadie lo notara (lo detectó la auditoría S103 de VRP Chile). El
+     schedule nativo no depende de ningún servicio externo. GitHub puede correrlo
+     tarde en picos, pero para validación R2 (TIF ±90 min de una detección) cada
+     ~30 min alcanza. **Caveat**: MIROVA *sobrescribe* sus TIF en cada pasada → el
+     polling solo captura hacia adelante; el histórico previo a una reactivación
+     es irrecuperable.
+   - **Trigger externo (opcional)**: [cron-job.org](https://cron-job.org/) cada 5
+     min hace `POST` a la GitHub API (más frecuente que el schedule nativo):
+     ```
+     POST https://api.github.com/repos/MendozaVolcanic/mirova-tif-archive/actions/workflows/poll.yml/dispatches
+     Authorization: Bearer <PAT>
+     {"ref":"main"}
+     ```
+     Esto evita la cola/latencia del cron interno de GitHub. Si se revive, ambos
+     triggers conviven (el `concurrency: poll` serializa las corridas solapadas).
 2. **Workflow `poll.yml`**: corre `polling/poll.py`, commit + push si hay
    archivos nuevos.
 3. **`poll.py`**:
