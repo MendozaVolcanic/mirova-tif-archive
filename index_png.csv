@@ -42045,3 +42045,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path
 2026-06-09T07:33:05.142046+00:00,PlanchonPeteroa,COMB,VRP,2026-06-09T07:22:48+00:00,baa420aca48240af614d354e8265bf54,127205,data/png/PlanchonPeteroa/20260609_072248_COMB_VRP.png
 2026-06-09T07:33:05.401071+00:00,PlanchonPeteroa,COMB,logVRP,2026-06-09T07:22:50+00:00,ae5e7c7a1861aa8b842358d92f175adc,162960,data/png/PlanchonPeteroa/20260609_072250_COMB_logVRP.png
 2026-06-09T07:33:05.662501+00:00,PlanchonPeteroa,COMB,Dist,2026-06-09T07:22:56+00:00,54fb7984149bfebd90277a70b5ddbed4,124458,data/png/PlanchonPeteroa/20260609_072256_COMB_Dist.png
+2026-06-09T08:33:36.935565+00:00,PuyehueCordonCaulle,MODIS,VRP,2026-06-09T08:30:46+00:00,6ff224de5e75010a2da900ae8bc6a2cc,46419,data/png/PuyehueCordonCaulle/20260609_083046_MODIS_VRP.png
