@@ -81,10 +81,21 @@ jobs:
           git commit -m "poll: ${NEW} new MIROVA snapshot(s) [skip ci]"
 
           # Retry push on race.
+          pushed=0
           for i in 1 2 3; do
             if git push origin main; then
+              pushed=1
               break
             fi
             echo "push failed, attempt $i; rebasing and retrying"
             git pull --rebase -X theirs origin main
           done
+
+          # S104: agotar los 3 intentos NO puede terminar en verde. El commit
+          # queda solo en el runner (efimero) y el dato nunca se publica; el
+          # workflow reportaria success y nadie recibe mail -> pipeline zombie,
+          # peor que el fallo original porque es silencioso.
+          if [ "$pushed" -ne 1 ]; then
+            echo "::error::Push a origin/main fallo tras 3 intentos. El commit local NO se publico y se pierde con el runner."
+            exit 1
+          fi
