@@ -21,11 +21,23 @@ name: Poll MIROVA TIF/KMZ
         required: false
         default: "false"
 
-# Allow only one polling run at a time. Newer runs cancel older queued ones —
-# we don't want to stack pending runs if mirovaweb.it is slow.
-concurrency:
-  group: poll
-  cancel-in-progress: false
+# S133 — SIN grupo de concurrencia, y es deliberado.
+#
+# Lo que pasaba con el grupo: GitHub mantiene UNA sola corrida pendiente por grupo, asi
+# que cuando una corrida quedaba encolada (por falta de runners o porque la anterior
+# seguia viva), el disparo siguiente la DESPLAZABA. Con cron-job.org disparando cada
+# 5 min el poller se canibalizaba: 198 de las ultimas 200 corridas terminaron
+# `cancelled` y CERO en success, sin un solo commit entre el 2026-09-02 y el 2026-09-04.
+#
+# Por que eso es grave y no una molestia: MIROVA SOBRESCRIBE su imagen "Last" en cada
+# pasada. Una captura que no se toma no se puede tomar despues — se pierde para siempre.
+# El TIF de la anomalia de 4,75 MW de Villarrica del 2026-09-04 07:50 se perdio asi.
+#
+# Por que es seguro quitarlo: el paso de push YA es a prueba de carreras (pull --rebase
+# + reintentos con backoff, y falla ruidosamente si no logra publicar). El grupo no
+# estaba protegiendo nada que el push no proteja mejor; solo estaba matando corridas.
+# Es el mismo patron que VRP Chile documenta: o grupo compartido, o bucle de reintento
+# propio, nunca los dos.
 
 permissions:
   contents: write
@@ -80,14 +92,19 @@ jobs:
           NEW=$(git diff --staged --name-only data/ | wc -l | tr -d ' ')
           git commit -m "poll: ${NEW} new MIROVA snapshot(s) [skip ci]"
 
-          # Retry push on race.
+          # Retry push on race. S133: 5 intentos con backoff en vez de 3 a secas.
+          # Al quitar el grupo de concurrencia varias corridas pueden empujar casi a la
+          # vez, asi que el reintento pasa a ser la UNICA defensa contra la carrera y
+          # conviene que aguante mas. El backoff evita que dos corridas reintenten
+          # sincronizadas y vuelvan a chocar.
           pushed=0
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5; do
             if git push origin main; then
               pushed=1
               break
             fi
             echo "push failed, attempt $i; rebasing and retrying"
+            sleep $(( i * 3 ))
             git pull --rebase -X theirs origin main
           done
 
@@ -96,6 +113,6 @@ jobs:
           # workflow reportaria success y nadie recibe mail -> pipeline zombie,
           # peor que el fallo original porque es silencioso.
           if [ "$pushed" -ne 1 ]; then
-            echo "::error::Push a origin/main fallo tras 3 intentos. El commit local NO se publico y se pierde con el runner."
+            echo "::error::Push a origin/main fallo tras 5 intentos. El commit local NO se publico y se pierde con el runner."
             exit 1
           fi
