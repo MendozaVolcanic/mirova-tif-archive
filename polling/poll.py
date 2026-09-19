@@ -225,6 +225,31 @@ def fetch_binary(url: str, session: requests.Session) -> bytes | None:
     return r.content
 
 
+# Firma de los primeros bytes de cada formato, comprobada contra archivos reales del archivo
+# (TIF `II*` + byte cero, PNG estándar, KMZ = zip `PK`). TIFF big-endian se acepta por si MIROVA
+# cambia de biblioteca.
+FIRMAS = {
+    "tif": (b"II*\x00", b"MM\x00*"),
+    "png": (b"\x89PNG\r\n\x1a\n",),
+    "kmz": (b"PK\x03\x04",),
+}
+
+
+def contenido_valido(data: bytes | None, tipo: str) -> bool:
+    """True si `data` es un archivo no vacío del formato esperado.
+
+    POR QUÉ. MIROVA sobrescribe su imagen "Last" en cada pasada. Si el poller la pide justo
+    mientras el servidor la reescribe, recibe un 200 con el cuerpo vacío (o una página de error
+    servida con 200). Hasta 2026-09 eso se archivaba como un TIF de 0 bytes (7 TIF y 2 PNG en
+    ~154 mil capturas), y en la consulta siguiente el TIF real de la MISMA pasada chocaba con el
+    vacío en el guard de colisión: quedaba guardado con sufijo `_lm` y sin hora de adquisición.
+    Rechazar acá, sin tocar el índice, hace que la consulta siguiente simplemente reintente.
+    """
+    if not data:
+        return False
+    return data.startswith(FIRMAS[tipo])
+
+
 def md5_hex(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
 
@@ -296,6 +321,14 @@ def process_target(
     tif_bytes = fetch_binary(target.tif_url(), session)
     if tif_bytes is None:
         return None
+    if not contenido_valido(tif_bytes, "tif"):
+        # No se guarda y NO se devuelve fila: el índice queda con el Last-Modified anterior, así
+        # que la próxima consulta vuelve a bajar el TIF, ya escrito entero por MIROVA.
+        logging.warning(
+            "[%s/%s] TIF inválido (%d bytes, empieza %r); no se archiva, se reintenta en la próxima consulta",
+            target.volcano, target.sensor, len(tif_bytes), tif_bytes[:8],
+        )
+        return None
 
     md5 = md5_hex(tif_bytes)
     if last_row and last_row["md5"] == md5:
@@ -318,6 +351,13 @@ def process_target(
     # NEW content. Fetch acquisition_time for proper filename + KMZ.
     acquisition = fetch_acquisition_time(target.volcano, target.sensor, session)
     kmz_bytes = fetch_binary(target.kmz_url(), session)
+    if kmz_bytes is not None and not contenido_valido(kmz_bytes, "kmz"):
+        # El KMZ es accesorio: se guarda el TIF igual y el KMZ queda vacío en el índice.
+        logging.warning(
+            "[%s/%s] KMZ inválido (%d bytes); se guarda sólo el TIF",
+            target.volcano, target.sensor, len(kmz_bytes),
+        )
+        kmz_bytes = None
 
     if dry_run:
         logging.info(
@@ -408,6 +448,12 @@ def process_png_target(
 
     png_bytes = fetch_binary(target.url(), session)
     if png_bytes is None:
+        return None
+    if not contenido_valido(png_bytes, "png"):
+        logging.warning(
+            "[%s/%s/%s] PNG inválido (%d bytes); no se archiva, se reintenta en la próxima consulta",
+            target.volcano, target.sensor, target.kind, len(png_bytes),
+        )
         return None
 
     md5 = md5_hex(png_bytes)
