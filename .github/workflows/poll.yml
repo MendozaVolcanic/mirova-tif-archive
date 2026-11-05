@@ -56,12 +56,28 @@ jobs:
     # por margen, porque los runners vienen mas lentos desde fines de agosto.
     timeout-minutes: 25
     steps:
+      # S173 (2026-11-05) - CHECKOUT PARCIAL, sin data/. El repo pesa 21 GB y el
+      # runner trae ~14 GB libres: desde el 2026-11-02 el checkout completo llenaba
+      # el disco ("No space left on device", 22 fallas) o pasaba los 25 min (93
+      # cancelaciones). Cada corrida perdida es una captura de MIROVA que no vuelve.
+      # poll.py deduplica contra index.csv / index_png.csv, no contra los archivos
+      # de data/, asi que no necesita las imagenes viejas en disco. Con
+      # sparse-checkout, actions/checkout usa --filter=blob:none: solo baja los
+      # blobs de estas rutas. Limite conocido: el aviso COLLISION de poll.py (archivo
+      # con el mismo nombre ya existente) deja de verse, porque data/ no esta.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           # Need full history-less but with auth so we can push.
           fetch-depth: 1
           persist-credentials: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/
+            /polling/
+            /config/
+            /index.csv
+            /index_png.csv
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -88,7 +104,9 @@ jobs:
           git config user.email "mirova-tif-bot@users.noreply.github.com"
 
           # Stage everything under data/ and both indexes.
-          git add data/ index.csv index_png.csv 2>/dev/null || true
+          # --sparse: data/ esta fuera del sparse-checkout (S173); sin la bandera git
+          # se niega a agregar los archivos nuevos que poll.py escribio ahi.
+          git add --sparse data/ index.csv index_png.csv 2>/dev/null || true
 
           if git diff --staged --quiet; then
             echo "No changes to commit."
