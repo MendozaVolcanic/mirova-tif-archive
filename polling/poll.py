@@ -8,6 +8,8 @@ Output:
   - data/tif/{Volcano}/{YYYYMMDD_HHMMSS}_{sensor}.tif
   - data/kmz/{Volcano}/{YYYYMMDD_HHMMSS}_{sensor}.kmz
   - index.csv (append-only log)
+  - data/png/{Volcano}/{YYYYMMDD_HHMMSS}_{sensor}_{kind}.png, adelgazado (ver
+    "Adelgazamiento de PNG" más abajo); index_png.csv registra también lo omitido.
 
 Uso local:
   pip install -r polling/requirements.txt
@@ -24,7 +26,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -80,13 +82,64 @@ INDEX_PNG_HEADER = [
     "last_modified_utc",
     "md5",
     "size_bytes",
-    "png_path",
+    "png_path",     # vacío si la versión se omitió a propósito (ver `omitido`)
+    "omitido",      # vacío = guardada; si no, el motivo por el que no se guardó (S173)
 ]
+# Cabecera del índice antes de S173 (8 columnas). `append_png_index` la migra en el lugar.
+INDEX_PNG_HEADER_V1 = INDEX_PNG_HEADER[:-1]
 
 # Per-sensor PNG types (the 4 plots per sensor)
 PER_SENSOR_PNG_KINDS = ["VRP", "logVRP", "Dist", "Latest10NTI"]
 # COMB cross-sensor PNGs (3 plots, no Latest10NTI for COMB)
 COMB_PNG_KINDS = ["VRP", "logVRP", "Dist"]
+
+# ---------------------------------------------------------------------------
+# Adelgazamiento de PNG (S173, 2026-11-05, aprobado por Nicolás)
+#
+# POR QUÉ. El repo pesaba 21,7 GB el 2026-11-05 y el 94 % eran PNG; entraban ~3 GB al mes, muy por
+# encima de lo que GitHub recomienda (5 GB por repo). Cada PNG es distinto en bytes (cambia el
+# rótulo "Last Update"), pero casi toda su INFORMACIÓN se repite:
+#
+# - VRP, logVRP y Dist (por sensor y COMB) son series de tiempo ACUMULATIVAS: el gráfico de hoy
+#   trae dibujados los puntos de ayer. Se guarda la PRIMERA versión nueva de cada día UTC: como se
+#   genera con la primera pasada del día, trae completo el día anterior. Se pierden las versiones
+#   intermedias del día (incluida la estrella de "última alerta" del mapa COMB cuando hay varias
+#   alertas el mismo día); esos números ya los publica latest.php y los guarda Mirova-v1.
+#
+# - Latest10NTI es un mosaico de las 10 ÚLTIMAS pasadas, con la hora de cada una. Desde el
+#   2026-09-22 MIROVA sirve siempre el mismo TIF, así que este mosaico es la única información
+#   espacial nueva que queda: ninguna pasada puede quedar fuera de todos los mosaicos guardados.
+#   Regla, tres partes:
+#     (1) se guarda una versión de cada NTI_CADA_N_VERSIONES; las demás se omiten;
+#     (2) se guarda la versión que llega tras NTI_SILENCIO_HORAS o más sin versiones (puede traer
+#         de golpe muchas pasadas si MIROVA se estaba poniendo al día, y las más viejas quedarían
+#         al fondo del mosaico, a punto de salir);
+#     (3) "rescate": una versión omitida que lleva NTI_SILENCIO_HORAS publicada sin sucesor se
+#         guarda en ese momento (ver `hay_que_rescatar`): mientras MIROVA calla sigue a la vista.
+#   O sea, todo silencio de 8 h o más queda con un mosaico guardado a cada lado. Medido sobre
+#   index_png.csv e index.csv (2026-05-08 a 2026-11-05, 11 volcanes, 3 sensores):
+#     * hay 1,3 a 1,5 versiones del mosaico por pasada (MIROVA lo republica sin pasada nueva);
+#     * un día UTC trae como máximo 9 (MODIS), 12 (VIIRS 375) y 13 (VIIRS 750) versiones;
+#     * en 8 h móviles caben como máximo 6 versiones del mosaico y 5 pasadas con TIF.
+#   Entre dos mosaicos guardados entran, entonces, las pasadas de 4 versiones separadas por menos
+#   de 8 h: unas 3 en el caso típico, 8 si cada versión trae dos (poller que pierde corridas), y en
+#   el peor caso medido una versión con las ≤ 5 de 8 h más tres sueltas. Todo cabe en 10.
+#   Aplicada a la historia completa (medir/simular_regla.py en la sesión S173 de VRP Chile): 0
+#   pasadas quedan sin mosaico guardado, contando cada versión como una pasada y contando las 14.149
+#   pasadas con TIF de mayo a septiembre; se guarda el 46 % de los bytes del mosaico. Sin la parte (2)
+#   bajaba a 32 %, pero una prueba sintética (MIROVA se pone al día con 14 pasadas) perdía 3.
+#   Límite aceptado: si el POLLER (no MIROVA) se cae justo después de omitir y en su ausencia
+#   entran más de ~7 pasadas, se pierden las de hasta 3 versiones omitidas pendientes. Guardando todo
+#   también se pierde lo que exceda 10 en ese hueco; lo propio de esta regla es lo pendiente.
+#
+# Lo omitido NO desaparece del índice: queda una fila con md5, tamaño y Last-Modified, png_path
+# vacío y el motivo en `omitido`, para que se distinga de una captura fallida.
+# Los TIF y KMZ no se adelgazan. Pruebas: tests/test_adelgazar_png.py.
+GRAFICOS_UNO_POR_DIA = frozenset({"VRP", "logVRP", "Dist"})
+NTI_CADA_N_VERSIONES = 4
+NTI_SILENCIO_HORAS = 8
+OMITIDO_GRAFICO = "grafico_ya_guardado_este_dia"
+OMITIDO_NTI = "nti_cubierto_por_mosaico_guardado"
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -114,6 +167,64 @@ class PngTarget:
 
     def url(self) -> str:
         return f"{BASE_URL}/{self.sensor}/VOLCANOES/{self.volcano}/{self.volcano}_{self.sensor}_{self.kind}.png"
+
+
+@dataclass
+class EstadoPng:
+    """Lo que la regla de adelgazamiento necesita del historial de un (volcán, sensor, tipo)."""
+    ultimo_lm_guardado: datetime | None = None
+    omitidas_desde_guardado: int = 0
+    ultimo_lm_visto: datetime | None = None     # última versión nueva, guardada u omitida
+
+
+def actualizar_estado(e: EstadoPng, last_modified: datetime | None, guardada: bool) -> None:
+    """Registra una versión NUEVA (guardada u omitida) en el estado."""
+    if guardada:
+        e.omitidas_desde_guardado = 0
+        if last_modified is not None:
+            e.ultimo_lm_guardado = last_modified
+    else:
+        e.omitidas_desde_guardado += 1
+    if last_modified is not None:
+        e.ultimo_lm_visto = last_modified
+
+
+def decidir_guardar_png(kind: str, last_modified: datetime, estado: EstadoPng | None) -> str:
+    """"" si una versión NUEVA (md5 distinto) se guarda; si no, el motivo para omitirla."""
+    if estado is None or estado.ultimo_lm_guardado is None:
+        return ""
+    if kind in GRAFICOS_UNO_POR_DIA:
+        if last_modified.date() != estado.ultimo_lm_guardado.date():
+            return ""
+        return OMITIDO_GRAFICO
+    if kind == "Latest10NTI":
+        if estado.omitidas_desde_guardado + 1 >= NTI_CADA_N_VERSIONES:
+            return ""
+        visto = estado.ultimo_lm_visto or estado.ultimo_lm_guardado
+        if last_modified - visto >= timedelta(hours=NTI_SILENCIO_HORAS):
+            return ""
+        return OMITIDO_NTI
+    return ""   # tipo desconocido: se guarda, por las dudas
+
+
+def ahora_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def hay_que_rescatar(kind: str, last_row: dict, ahora: datetime) -> bool:
+    """True si el mosaico NTI vigente se omitió y lleva NTI_SILENCIO_HORAS sin sucesor.
+
+    POR QUÉ. Un mosaico omitido confía en que el SIGUIENTE guardado repita sus pasadas. Si MIROVA
+    calla un rato y después publica de golpe muchas pasadas (se pone al día), el siguiente podría
+    ya no mostrarlas. Mientras MIROVA calla, el mosaico omitido sigue publicado: se guarda ahí.
+    """
+    if kind != "Latest10NTI" or not last_row.get("omitido"):
+        return False
+    try:
+        lm = datetime.fromisoformat(last_row["last_modified_utc"])
+    except ValueError:
+        return True
+    return ahora - lm >= timedelta(hours=NTI_SILENCIO_HORAS)
 
 
 # ---------------------------------------------------------------------------
@@ -165,16 +276,43 @@ def load_index() -> dict[tuple[str, str], dict]:
     return last
 
 
-def load_png_index() -> dict[tuple[str, str, str], dict]:
-    """Map (volcano, sensor, kind) -> last row dict for PNG index."""
+def load_png_index_y_estado() -> tuple[
+    dict[tuple[str, str, str], dict], dict[tuple[str, str, str], EstadoPng]
+]:
+    """(volcano, sensor, kind) -> última fila del índice PNG, y el estado del adelgazamiento.
+
+    Una fila con `omitido` es una versión omitida; una fila "touched" (mismo md5 que la anterior)
+    no es versión nueva y no cuenta.
+    """
     if not INDEX_PNG_CSV.exists():
-        return {}
+        return {}, {}
     last: dict[tuple[str, str, str], dict] = {}
+    estado: dict[tuple[str, str, str], EstadoPng] = {}
     with INDEX_PNG_CSV.open(encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
+            if row.get("omitido") is None:
+                row["omitido"] = ""      # fila anterior a S173 (8 columnas)
             key = (row["volcano"], row["sensor"], row["kind"])
+            prev = last.get(key)
+            e = estado.setdefault(key, EstadoPng())
+            try:
+                lm = datetime.fromisoformat(row["last_modified_utc"])
+            except ValueError:
+                lm = None
+            if row["omitido"]:
+                if not (prev and prev.get("md5") == row["md5"]):
+                    actualizar_estado(e, lm, guardada=False)
+            elif row.get("png_path"):
+                # ruta nueva = versión guardada (también el rescate, que repite el md5 omitido)
+                if not (prev and prev.get("png_path") == row["png_path"]):
+                    actualizar_estado(e, lm, guardada=True)
             last[key] = row
-    return last
+    return last, estado
+
+
+def load_png_index() -> dict[tuple[str, str, str], dict]:
+    """Map (volcano, sensor, kind) -> last row dict for PNG index."""
+    return load_png_index_y_estado()[0]
 
 
 def append_index(rows: list[dict]) -> None:
@@ -187,9 +325,28 @@ def append_index(rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
+def _migrar_cabecera_png() -> None:
+    """Agrega la columna `omitido` a la cabecera de un índice anterior a S173.
+
+    Sólo cambia la primera línea: las filas viejas quedan byte a byte iguales (el diff de git es
+    una línea) y cualquier lector CSV las lee con `omitido` vacío.
+    """
+    with INDEX_PNG_CSV.open("rb") as f:
+        primera = f.readline()
+        if primera.rstrip(b"\r\n").decode("utf-8") != ",".join(INDEX_PNG_HEADER_V1):
+            return
+        resto = f.read()
+    fin = b"\r\n" if primera.endswith(b"\r\n") else b"\n"
+    tmp = INDEX_PNG_CSV.with_name(INDEX_PNG_CSV.name + ".tmp")
+    tmp.write_bytes(",".join(INDEX_PNG_HEADER).encode("utf-8") + fin + resto)
+    os.replace(tmp, INDEX_PNG_CSV)
+
+
 def append_png_index(rows: list[dict]) -> None:
     new = not INDEX_PNG_CSV.exists()
     INDEX_PNG_CSV.parent.mkdir(parents=True, exist_ok=True)
+    if not new:
+        _migrar_cabecera_png()
     with INDEX_PNG_CSV.open("a", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=INDEX_PNG_HEADER)
         if new:
@@ -436,15 +593,20 @@ def process_png_target(
     session: requests.Session,
     last_index: dict[tuple[str, str, str], dict],
     dry_run: bool,
+    estado: dict[tuple[str, str, str], EstadoPng] | None = None,
 ) -> dict | None:
+    """Fila a agregar al índice (versión guardada, re-touch u omitida), o None."""
     key = (target.volcano, target.sensor, target.kind)
     last_modified = head_last_modified(target.url(), session)
     if last_modified is None:
         return None
 
     last_row = last_index.get(key)
+    rescate = False
     if last_row and last_row["last_modified_utc"] == last_modified.isoformat():
-        return None
+        if not hay_que_rescatar(target.kind, last_row, ahora_utc()):
+            return None
+        rescate = True
 
     png_bytes = fetch_binary(target.url(), session)
     if png_bytes is None:
@@ -457,20 +619,48 @@ def process_png_target(
         return None
 
     md5 = md5_hex(png_bytes)
-    if last_row and last_row["md5"] == md5:
+    if last_row and last_row["md5"] == md5 and rescate:
+        # El mosaico omitido sigue publicado y nadie lo reemplazó en NTI_SILENCIO_HORAS: se guarda ahora.
+        motivo = ""
+        logging.info(
+            "[%s/%s/%s] rescate de mosaico omitido sin sucesor (Last-Modified=%s)",
+            target.volcano, target.sensor, target.kind, last_modified.isoformat(),
+        )
+    elif last_row and last_row["md5"] == md5:
         # silent re-touch
         return {
             **last_row,
+            "omitido": last_row.get("omitido") or "",
             "captured_at_utc": datetime.now(timezone.utc).isoformat(),
             "last_modified_utc": last_modified.isoformat(),
         }
+    else:
+        motivo = decidir_guardar_png(target.kind, last_modified, (estado or {}).get(key))
 
     if dry_run:
         logging.info(
-            "[dry-run] would save %s/%s/%s (%d bytes)",
+            "[dry-run] would %s %s/%s/%s (%d bytes)",
+            f"omit ({motivo})" if motivo else "save",
             target.volcano, target.sensor, target.kind, len(png_bytes),
         )
         return None
+
+    if motivo:
+        logging.info(
+            "[%s/%s/%s] omitido: %s (Last-Modified=%s)",
+            target.volcano, target.sensor, target.kind, motivo, last_modified.isoformat(),
+        )
+        return {
+            "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+            "volcano": target.volcano,
+            "sensor": target.sensor,
+            "kind": target.kind,
+            "last_modified_utc": last_modified.isoformat(),
+            "md5": md5,
+            "size_bytes": len(png_bytes),
+            "png_path": "",
+            "omitido": motivo,
+        }
 
     fname = f"{stamp(last_modified)}_{target.sensor}_{target.kind}"
     png_path = DATA_PNG / target.volcano / f"{fname}.png"
@@ -491,6 +681,7 @@ def process_png_target(
         "md5": md5,
         "size_bytes": len(png_bytes),
         "png_path": str(png_path.relative_to(REPO_ROOT)).replace("\\", "/"),
+        "omitido": "",
     }
 
 
@@ -512,6 +703,7 @@ def main() -> int:
     touched_tif: list[dict] = []
     new_rows_png: list[dict] = []
     touched_png: list[dict] = []
+    omitted_png: list[dict] = []
 
     # ---- TIF + KMZ leg ----
     if not args.skip_tif:
@@ -543,21 +735,23 @@ def main() -> int:
             png_targets = [t for t in png_targets if t.volcano == args.volcano]
         if args.sensor:
             png_targets = [t for t in png_targets if t.sensor == args.sensor]
-        last_png_index = load_png_index()
+        last_png_index, estado_png = load_png_index_y_estado()
         for t in png_targets:
-            row = process_png_target(t, session, last_png_index, args.dry_run)
+            row = process_png_target(t, session, last_png_index, args.dry_run, estado_png)
             if row is None:
                 continue
             prev = last_png_index.get((t.volcano, t.sensor, t.kind))
-            if prev and row.get("png_path") == prev.get("png_path"):
+            if prev and row.get("md5") == prev.get("md5") and row.get("png_path") == prev.get("png_path"):
                 touched_png.append(row)
+            elif row.get("omitido"):
+                omitted_png.append(row)
             else:
                 new_rows_png.append(row)
-        if not args.dry_run and (new_rows_png or touched_png):
-            append_png_index(new_rows_png + touched_png)
+        if not args.dry_run and (new_rows_png or touched_png or omitted_png):
+            append_png_index(new_rows_png + omitted_png + touched_png)
 
     total_new = len(new_rows_tif) + len(new_rows_png)
-    total_touched = len(touched_tif) + len(touched_png)
+    total_touched = len(touched_tif) + len(touched_png) + len(omitted_png)
 
     if total_new == 0 and total_touched == 0:
         logging.info("no changes")
@@ -565,14 +759,15 @@ def main() -> int:
         return 0
 
     logging.info(
-        "summary: tif=%d/%d png=%d/%d (new/touched)",
+        "summary: tif=%d/%d png=%d/%d/%d (new/touched/omitted)",
         len(new_rows_tif), len(touched_tif),
-        len(new_rows_png), len(touched_png),
+        len(new_rows_png), len(touched_png), len(omitted_png),
     )
     print(
         f"STATUS: changes "
         f"tif_new={len(new_rows_tif)} tif_touched={len(touched_tif)} "
-        f"png_new={len(new_rows_png)} png_touched={len(touched_png)}"
+        f"png_new={len(new_rows_png)} png_touched={len(touched_png)} "
+        f"png_omitted={len(omitted_png)}"
     )
     return 0
 
