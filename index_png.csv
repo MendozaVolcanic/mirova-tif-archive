@@ -167625,3 +167625,10 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-07T04:05:48.860434+00:00,Villarrica,MODIS,Latest10NTI,2026-11-07T03:48:43+00:00,d636d75b14fed4ef0db717f75e204e3e,102595,,nti_cubierto_por_mosaico_guardado
 2026-11-07T04:05:51.858452+00:00,PuyehueCordonCaulle,MODIS,Latest10NTI,2026-11-07T03:49:36+00:00,a5d665e8ddf59d150211beaad0581f41,103908,,nti_cubierto_por_mosaico_guardado
 2026-11-07T04:05:55.171530+00:00,Chaiten,MODIS,Latest10NTI,2026-11-07T03:50:31+00:00,6d948d5a2892b94210e4b26ed71124e1,99060,,nti_cubierto_por_mosaico_guardado
+2026-11-07T04:50:54.139399+00:00,Chaiten,MODIS,Latest10NTI,2026-11-07T04:36:08+00:00,5bf464a70c5bcb62d55b10ec0ba3f652,96373,data/png/Chaiten/20261107_043608_MODIS_Latest10NTI.png,
+2026-11-07T04:50:52.999645+00:00,Chaiten,MODIS,VRP,2026-11-07T04:35:41+00:00,88e4fceeb75d1ec015c578a6eea3e03f,51929,,grafico_ya_guardado_este_dia
+2026-11-07T04:50:53.487410+00:00,Chaiten,MODIS,logVRP,2026-11-07T04:35:47+00:00,5d440caedaef043f20b52b0aa5214a19,71344,,grafico_ya_guardado_este_dia
+2026-11-07T04:50:53.806705+00:00,Chaiten,MODIS,Dist,2026-11-07T04:35:52+00:00,65280e73343f4b4b76a54ad03e978a31,52086,,grafico_ya_guardado_este_dia
+2026-11-07T04:50:55.744190+00:00,Chaiten,COMB,VRP,2026-11-07T04:36:19+00:00,754724b2323006ee042f7e70f507d048,105101,,grafico_ya_guardado_este_dia
+2026-11-07T04:50:56.097270+00:00,Chaiten,COMB,logVRP,2026-11-07T04:36:22+00:00,358e8314fe904a8bffe5bb321ebec6f2,140264,,grafico_ya_guardado_este_dia
+2026-11-07T04:50:56.420299+00:00,Chaiten,COMB,Dist,2026-11-07T04:36:31+00:00,76accfa1ccd19fe8459c164753d3aa8e,106708,,grafico_ya_guardado_este_dia
