@@ -168145,3 +168145,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-07T20:05:31.938845+00:00,Tupungatito,COMB,VRP,2026-11-07T19:58:27+00:00,9516fba289f48c2c2d616dca859e56d3,139513,,grafico_ya_guardado_este_dia
 2026-11-07T20:05:32.190881+00:00,Tupungatito,COMB,logVRP,2026-11-07T19:58:29+00:00,dc0bd75fa9dcd09e23ba56021d6586bf,166805,,grafico_ya_guardado_este_dia
 2026-11-07T20:05:32.452370+00:00,Tupungatito,COMB,Dist,2026-11-07T19:58:34+00:00,a24eb751f728069b7aee25cc585ffe58,131403,,grafico_ya_guardado_este_dia
+2026-11-07T21:15:32.082256+00:00,Lascar,MODIS,Latest10NTI,2026-11-07T13:14:57+00:00,a5ae4953cb1c24d413ecd61e9520c54d,98392,data/png/Lascar/20261107_131457_MODIS_Latest10NTI.png,
