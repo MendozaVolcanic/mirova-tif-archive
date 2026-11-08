@@ -168769,3 +168769,7 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-08T22:20:45.952338+00:00,PlanchonPeteroa,COMB,VRP,2026-11-08T22:15:27+00:00,89143037938189b7a769e322cbd05151,127570,,grafico_ya_guardado_este_dia
 2026-11-08T22:20:46.327989+00:00,PlanchonPeteroa,COMB,logVRP,2026-11-08T22:15:31+00:00,c1012a2c929c4940f5543eb56daaf1b8,163426,,grafico_ya_guardado_este_dia
 2026-11-08T22:20:46.674014+00:00,PlanchonPeteroa,COMB,Dist,2026-11-08T22:15:39+00:00,879a4a1ae94b4699e734c9071143b359,126852,,grafico_ya_guardado_este_dia
+2026-11-08T22:50:57.517828+00:00,Chaiten,MODIS,Latest10NTI,2026-11-08T14:48:16+00:00,301a8dccc43c4dcd66f3294bff0ee995,92084,data/png/Chaiten/20261108_144816_MODIS_Latest10NTI.png,
+2026-11-08T22:50:40.023123+00:00,Tupungatito,COMB,VRP,2026-11-08T22:16:38+00:00,0898cabdc844d377a70775cc3f29e1d8,140027,,grafico_ya_guardado_este_dia
+2026-11-08T22:50:40.551446+00:00,Tupungatito,COMB,logVRP,2026-11-08T22:16:41+00:00,5f367b88e58a1d57c71d14ef18e1ce05,167825,,grafico_ya_guardado_este_dia
+2026-11-08T22:50:40.906992+00:00,Tupungatito,COMB,Dist,2026-11-08T22:16:58+00:00,15ee838804c1ebffe8fb4a7f334310e7,132306,,grafico_ya_guardado_este_dia
