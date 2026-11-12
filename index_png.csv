@@ -171565,3 +171565,7 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-12T18:51:00.152676+00:00,Chaiten,COMB,VRP,2026-11-12T18:45:08+00:00,81b00bbd693c3b061d7e78df5894f310,104281,,grafico_ya_guardado_este_dia
 2026-11-12T18:51:00.452320+00:00,Chaiten,COMB,logVRP,2026-11-12T18:45:12+00:00,4db61282241789044e6e848c9448b9b7,139316,,grafico_ya_guardado_este_dia
 2026-11-12T18:51:00.716952+00:00,Chaiten,COMB,Dist,2026-11-12T18:45:19+00:00,662ca8c74e418d918579b127616e5fa8,105396,,grafico_ya_guardado_este_dia
+2026-11-12T21:05:31.023608+00:00,Isluga,MODIS,Latest10NTI,2026-11-12T13:02:05+00:00,20c5ed4c90844ca7ebc338abc2115fbf,95968,data/png/Isluga/20261112_130205_MODIS_Latest10NTI.png,
+2026-11-12T21:05:39.466945+00:00,Tupungatito,COMB,VRP,2026-11-12T18:45:59+00:00,05b5bda5a6d348482ea11f0b4c72fbf1,139484,,grafico_ya_guardado_este_dia
+2026-11-12T21:05:39.772476+00:00,Tupungatito,COMB,logVRP,2026-11-12T18:46:01+00:00,dac280782d369d7da5ff2cdc9c74f2d4,167392,,grafico_ya_guardado_este_dia
+2026-11-12T21:05:40.074859+00:00,Tupungatito,COMB,Dist,2026-11-12T18:46:08+00:00,380044f82de191506453ad708ecb80e5,131271,,grafico_ya_guardado_este_dia
