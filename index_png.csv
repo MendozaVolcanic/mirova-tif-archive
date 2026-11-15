@@ -173700,3 +173700,10 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-15T21:05:34.090887+00:00,ChillanNevadosde,COMB,VRP,2026-11-15T20:55:15+00:00,271f0b336324f39c0e034fab4c360408,124435,,grafico_ya_guardado_este_dia
 2026-11-15T21:05:34.319242+00:00,ChillanNevadosde,COMB,logVRP,2026-11-15T20:55:17+00:00,2f3cd9faf7b6668d1b7d6b83237f9ba4,156018,,grafico_ya_guardado_este_dia
 2026-11-15T21:05:34.555792+00:00,ChillanNevadosde,COMB,Dist,2026-11-15T20:55:26+00:00,d37241e9099e56e0cfc6ad49e2ef9192,120928,,grafico_ya_guardado_este_dia
+2026-11-15T21:20:38.277477+00:00,ChillanNevadosde,VIIRS375,Latest10NTI,2026-11-15T21:04:51+00:00,7bb7b6113e6744edc1b70536d8a5e9c2,390909,data/png/ChillanNevadosde/20261115_210451_VIIRS375_Latest10NTI.png,
+2026-11-15T21:20:37.342737+00:00,ChillanNevadosde,VIIRS375,VRP,2026-11-15T21:04:38+00:00,ae8bbd1f6416e6b5e73ad36a232c47ad,119281,,grafico_ya_guardado_este_dia
+2026-11-15T21:20:37.710056+00:00,ChillanNevadosde,VIIRS375,logVRP,2026-11-15T21:04:40+00:00,2e0eea53cb89615a61919b31d89cd19b,157242,,grafico_ya_guardado_este_dia
+2026-11-15T21:20:37.943427+00:00,ChillanNevadosde,VIIRS375,Dist,2026-11-15T21:04:43+00:00,8736c58550615f34a7f8bc17f2850a2c,110739,,grafico_ya_guardado_este_dia
+2026-11-15T21:20:38.504108+00:00,ChillanNevadosde,COMB,VRP,2026-11-15T21:04:59+00:00,f0baa9aa9a31f5b6dbf1008b5230998f,124359,,grafico_ya_guardado_este_dia
+2026-11-15T21:20:38.730846+00:00,ChillanNevadosde,COMB,logVRP,2026-11-15T21:05:00+00:00,160e9377a0e59f45d599fcecacc23aed,157054,,grafico_ya_guardado_este_dia
+2026-11-15T21:20:38.955884+00:00,ChillanNevadosde,COMB,Dist,2026-11-15T21:05:06+00:00,a643961a5bd82257e599a0ba742e69e2,120891,,grafico_ya_guardado_este_dia
