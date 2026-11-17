@@ -174868,3 +174868,5 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-17T21:30:44.382620+00:00,PlanchonPeteroa,COMB,VRP,2026-11-17T20:46:55+00:00,dcd518b146dbf6de2b552bd3b91667c2,127455,,grafico_ya_guardado_este_dia
 2026-11-17T21:30:44.677099+00:00,PlanchonPeteroa,COMB,logVRP,2026-11-17T20:46:57+00:00,1a00a1f43eb95d225c9c46634bb3932c,162558,,grafico_ya_guardado_este_dia
 2026-11-17T21:30:44.966149+00:00,PlanchonPeteroa,COMB,Dist,2026-11-17T20:47:04+00:00,6cdeb30e328e83a5b0e1916dfcc1f7d1,126309,,grafico_ya_guardado_este_dia
+2026-11-17T21:35:30.913051+00:00,Tupungatito,MODIS,Latest10NTI,2026-11-17T13:32:20+00:00,aea843c50b72381d091f73416964a264,99845,data/png/Tupungatito/20261117_133220_MODIS_Latest10NTI.png,
+2026-11-17T21:35:45.230099+00:00,Chaiten,MODIS,Latest10NTI,2026-11-17T13:31:42+00:00,0f47793ea6a520345a0e1c41cf6ed6d0,96145,data/png/Chaiten/20261117_133142_MODIS_Latest10NTI.png,
