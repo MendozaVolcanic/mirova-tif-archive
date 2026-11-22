@@ -178745,3 +178745,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-22T21:20:52.545699+00:00,PlanchonPeteroa,COMB,VRP,2026-11-22T21:03:19+00:00,3166b49e10508374ae687a6cfa06646e,126990,,grafico_ya_guardado_este_dia
 2026-11-22T21:20:52.895413+00:00,PlanchonPeteroa,COMB,logVRP,2026-11-22T21:03:20+00:00,fed43e32814260ec68c2e5232040cebd,162609,,grafico_ya_guardado_este_dia
 2026-11-22T21:20:53.236720+00:00,PlanchonPeteroa,COMB,Dist,2026-11-22T21:03:25+00:00,3b8c4d87eb33cfbc23a69cd5d7c7c173,125630,,grafico_ya_guardado_este_dia
+2026-11-22T21:40:36.790054+00:00,PlanchonPeteroa,MODIS,Latest10NTI,2026-11-22T13:40:23+00:00,c3e67d73dd4cb45b110d0d018068abeb,105471,data/png/PlanchonPeteroa/20261122_134023_MODIS_Latest10NTI.png,
