@@ -179064,3 +179064,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-23T03:05:48.837097+00:00,Villarrica,MODIS,Latest10NTI,2026-11-23T02:48:58+00:00,534f74dd785aed12a64686e6d77c0a82,102689,,nti_cubierto_por_mosaico_guardado
 2026-11-23T03:05:51.822721+00:00,PuyehueCordonCaulle,MODIS,Latest10NTI,2026-11-23T02:49:38+00:00,1897981eb7d66d4705d119285dece00b,105442,,nti_cubierto_por_mosaico_guardado
 2026-11-23T03:05:54.882185+00:00,Chaiten,MODIS,Latest10NTI,2026-11-23T02:50:13+00:00,fc5dd3d924898d9819341c341a01f256,100120,,nti_cubierto_por_mosaico_guardado
+2026-11-23T06:05:38.314813+00:00,PlanchonPeteroa,VIIRS750,Latest10NTI,2026-11-22T22:02:42+00:00,54c6de94091763881439531a83b054b2,261000,data/png/PlanchonPeteroa/20261122_220242_VIIRS750_Latest10NTI.png,
