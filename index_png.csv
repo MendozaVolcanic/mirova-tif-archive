@@ -180017,3 +180017,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-24T03:36:03.110933+00:00,PuyehueCordonCaulle,COMB,logVRP,2026-11-24T03:24:34+00:00,7930cdc389d31be829e07d9b25d4b6d2,155902,,grafico_ya_guardado_este_dia
 2026-11-24T03:36:03.457329+00:00,PuyehueCordonCaulle,COMB,Dist,2026-11-24T03:24:41+00:00,5f2757faf038282fadb51f45a5ee3f71,115851,,grafico_ya_guardado_este_dia
 2026-11-24T03:36:04.845689+00:00,Chaiten,MODIS,Latest10NTI,2026-11-24T03:25:40+00:00,6efddf7259790b8686e2ebc05c421e10,100698,,nti_cubierto_por_mosaico_guardado
+2026-11-24T05:45:37.958828+00:00,Lascar,VIIRS750,Latest10NTI,2026-11-23T21:45:33+00:00,52354fbbd0105b16b2064068e6d14cd1,204981,data/png/Lascar/20261123_214533_VIIRS750_Latest10NTI.png,
