@@ -181422,3 +181422,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-25T11:35:45.319072+00:00,Chaiten,COMB,VRP,2026-11-25T11:17:06+00:00,c5bbf5c597163900bc94f89a67f170f9,105203,,grafico_ya_guardado_este_dia
 2026-11-25T11:35:45.547407+00:00,Chaiten,COMB,logVRP,2026-11-25T11:17:08+00:00,aee661e8c072edd819dce821a43ba508,140145,,grafico_ya_guardado_este_dia
 2026-11-25T11:35:45.771819+00:00,Chaiten,COMB,Dist,2026-11-25T11:17:13+00:00,6adea7dbbc86aaecf1b8aaad0b5f28a2,106616,,grafico_ya_guardado_este_dia
+2026-11-25T12:10:44.037712+00:00,Lascar,MODIS,Latest10NTI,2026-11-25T04:08:13+00:00,fa3de55f5d1b09f39bb9ac62be81296d,97299,data/png/Lascar/20261125_040813_MODIS_Latest10NTI.png,
