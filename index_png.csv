@@ -180943,3 +180943,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-25T04:20:33.187484+00:00,Lascar,COMB,Dist,2026-11-25T04:08:30+00:00,4dcfff09c40659ccbfb8fcd4444d5d08,121127,data/png/Lascar/20261125_040830_COMB_Dist.png,
 2026-11-25T04:20:28.424049+00:00,Isluga,MODIS,Latest10NTI,2026-11-25T04:07:13+00:00,2b457560819c9477ed236239c78014de,101285,,nti_cubierto_por_mosaico_guardado
 2026-11-25T04:20:31.328567+00:00,Lascar,MODIS,Latest10NTI,2026-11-25T04:08:13+00:00,fa3de55f5d1b09f39bb9ac62be81296d,97299,,nti_cubierto_por_mosaico_guardado
+2026-11-25T05:50:31.669688+00:00,Lascar,VIIRS750,Latest10NTI,2026-11-24T21:50:16+00:00,76df5da9c9a86002dc497a81fab71122,206262,data/png/Lascar/20261124_215016_VIIRS750_Latest10NTI.png,
