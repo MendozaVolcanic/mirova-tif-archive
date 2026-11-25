@@ -181415,3 +181415,10 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-25T10:51:15.611137+00:00,PuyehueCordonCaulle,COMB,VRP,2026-11-25T10:43:40+00:00,7dff8473b085f8af5ddd343790d52f04,128566,,grafico_ya_guardado_este_dia
 2026-11-25T10:51:15.955133+00:00,PuyehueCordonCaulle,COMB,logVRP,2026-11-25T10:43:41+00:00,e1816c6f78995b1404f5d887b335d508,155701,,grafico_ya_guardado_este_dia
 2026-11-25T10:51:16.301033+00:00,PuyehueCordonCaulle,COMB,Dist,2026-11-25T10:43:46+00:00,255cb29bf7a527eef67622c31ece3f59,116404,,grafico_ya_guardado_este_dia
+2026-11-25T11:35:44.190141+00:00,Chaiten,MODIS,Latest10NTI,2026-11-25T11:17:00+00:00,2af12a9f19d9005153a778a095245291,100377,data/png/Chaiten/20261125_111700_MODIS_Latest10NTI.png,
+2026-11-25T11:35:43.407789+00:00,Chaiten,MODIS,VRP,2026-11-25T11:16:52+00:00,979268d442dba6d19eeb9a0a9a03da15,58575,,grafico_ya_guardado_este_dia
+2026-11-25T11:35:43.741170+00:00,Chaiten,MODIS,logVRP,2026-11-25T11:16:53+00:00,4aa5541456b090dad31cd1991ac18600,79450,,grafico_ya_guardado_este_dia
+2026-11-25T11:35:43.962730+00:00,Chaiten,MODIS,Dist,2026-11-25T11:16:56+00:00,c3d9c559a8ef3d5d8321eafe6235a9d7,58747,,grafico_ya_guardado_este_dia
+2026-11-25T11:35:45.319072+00:00,Chaiten,COMB,VRP,2026-11-25T11:17:06+00:00,c5bbf5c597163900bc94f89a67f170f9,105203,,grafico_ya_guardado_este_dia
+2026-11-25T11:35:45.547407+00:00,Chaiten,COMB,logVRP,2026-11-25T11:17:08+00:00,aee661e8c072edd819dce821a43ba508,140145,,grafico_ya_guardado_este_dia
+2026-11-25T11:35:45.771819+00:00,Chaiten,COMB,Dist,2026-11-25T11:17:13+00:00,6adea7dbbc86aaecf1b8aaad0b5f28a2,106616,,grafico_ya_guardado_este_dia
