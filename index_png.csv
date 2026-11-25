@@ -181692,3 +181692,4 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-25T21:36:05.810504+00:00,Chaiten,COMB,VRP,2026-11-25T21:16:47+00:00,ae12e7fb431015aa18ff49e20eb98067,105032,,grafico_ya_guardado_este_dia
 2026-11-25T21:36:06.101282+00:00,Chaiten,COMB,logVRP,2026-11-25T21:16:50+00:00,5a7d00e218985246896f1b3230e3ccd0,140101,,grafico_ya_guardado_este_dia
 2026-11-25T21:36:06.409193+00:00,Chaiten,COMB,Dist,2026-11-25T21:16:55+00:00,62be452105b89513c3e0cb472aefd06a,106350,,grafico_ya_guardado_este_dia
+2026-11-25T22:20:46.500756+00:00,Chaiten,MODIS,Latest10NTI,2026-11-25T14:19:42+00:00,82edd0aa9f9df2b0238b05b1b0653666,100377,data/png/Chaiten/20261125_141942_MODIS_Latest10NTI.png,
