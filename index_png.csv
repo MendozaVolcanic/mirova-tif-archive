@@ -182010,3 +182010,5 @@ captured_at_utc,volcano,sensor,kind,last_modified_utc,md5,size_bytes,png_path,om
 2026-11-26T03:20:58.583938+00:00,Villarrica,MODIS,Latest10NTI,2026-11-26T03:08:29+00:00,04939263f2e309607cb9f32c469dc709,95724,,nti_cubierto_por_mosaico_guardado
 2026-11-26T03:21:02.348873+00:00,PuyehueCordonCaulle,MODIS,Latest10NTI,2026-11-26T03:09:17+00:00,3f9b2a4ab8c5e13a3fcf728c77ced5da,97882,,nti_cubierto_por_mosaico_guardado
 2026-11-26T03:21:06.070638+00:00,Chaiten,MODIS,Latest10NTI,2026-11-26T03:10:05+00:00,37963a8054e7dfc884f71f85a8c4b809,99968,,nti_cubierto_por_mosaico_guardado
+2026-11-26T05:50:29.558599+00:00,Lascar,VIIRS750,Latest10NTI,2026-11-25T21:49:33+00:00,33db9b913e4d1ccc370773a8cfebfe10,224835,data/png/Lascar/20261125_214933_VIIRS750_Latest10NTI.png,
+2026-11-26T05:50:31.423379+00:00,Lastarria,VIIRS750,Latest10NTI,2026-11-25T21:50:16+00:00,dcc4623f6fc40140f145e5bc70edd0d2,229153,data/png/Lastarria/20261125_215016_VIIRS750_Latest10NTI.png,
